@@ -45,7 +45,7 @@ selected_model_name = st.sidebar.selectbox(
     list(model_options.keys())
 )
 
-# Load scaler
+# Load scaler data from the model directory
 @st.cache_resource
 def load_scaler():
     try:
