@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (accuracy_score, roc_auc_score, precision_score, 
                              recall_score, f1_score, matthews_corrcoef, 
                              confusion_matrix, classification_report)
-import pickle
+import joblib  # Using joblib instead of pickle for better compatibility
 import os
 
 # Create model directory if it doesn't exist
@@ -131,10 +131,9 @@ for model_name, model in models.items():
     print(f"  F1 Score: {f1:.4f}")
     print(f"  MCC: {mcc:.4f}")
     
-    # Save model
+    # Save model using joblib (better than pickle for sklearn models)
     model_filename = f"model/{model_name.replace(' ', '_').lower()}.pkl"
-    with open(model_filename, 'wb') as f:
-        pickle.dump(model, f)
+    joblib.dump(model, model_filename)
     print(f"  Model saved: {model_filename}")
 
 # Save all metrics to CSV for easy access
