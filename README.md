@@ -76,7 +76,6 @@ The objective is to:
 
 ### Prerequisites
 - Python 3.8 or higher
-- pip package manager
 
 ### Step 1: Clone the Repository
 ```bash
@@ -127,4 +126,23 @@ The interactive web application includes:
    - Model performance metrics are displayed in the main panel
    - Explore the confusion matrix for detailed predictions
    - Compare all models using the comparison dashboard
+
+## Deployment
+
+This application is deployed on **Streamlit Community Cloud**.
+
+**Live Application**: https://heart-disease-classification-5zcd5nwxqb4gmwts6y5dk4.streamlit.app/
+
+**GitHub Repository**: https://github.com/Kesavan-Upadhyayula/Heart-Disease-Classification
+
+### Deployment Steps
+
+1. Push code to GitHub repository
+2. Visit streamlit.io/cloud
+3. Sign in with GitHub account
+4. Click "New App"
+5. Select repository: `Heart-Disease-Classification`
+6. Select branch: `main`
+7. Select main file: `app.py`
+8. Click "Deploy"
 
