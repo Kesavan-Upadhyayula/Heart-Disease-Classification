@@ -138,5 +138,20 @@ for model_name, model in models.items():
     print(f"  Model saved: {model_filename}")
 
 
+# Save test data for Streamlit app
+test_data = pd.concat([pd.DataFrame(X_test_scaled, columns=X.columns), 
+                       pd.DataFrame(y_test.values, columns=['target'])], axis=1)
+test_data.to_csv('model/test_data.csv', index=False)
 
+# Save all metrics to CSV for easy access
+metrics_df = pd.DataFrame(metrics_results).T
+metrics_df.to_csv('model/metrics_comparison.csv')
+print("\n" + "="*80)
+print("Metrics Comparison Table:")
+print("="*80)
+print(metrics_df.to_string())
+
+print("\n" + "="*80)
+print("All models trained and saved successfully!")
+print("="*80)
 
