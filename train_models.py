@@ -1,5 +1,6 @@
 """
-Heart Disease Classification - Model Training
+Heart Disease Classification - Model Training Script
+This script trains all 6 classification models and saves them along with their metrics
 """
 
 import pandas as pd
@@ -14,7 +15,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (accuracy_score, roc_auc_score, precision_score, 
                              recall_score, f1_score, matthews_corrcoef, 
                              confusion_matrix, classification_report)
-import joblib  # Using joblib instead of pickle for better compatibility
+import pickle
 import os
 
 # Create model directory if it doesn't exist
@@ -45,8 +46,13 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # Save the scaler
-joblib.dump(scaler, 'model/scaler.pkl')
+with open('model/scaler.pkl', 'wb') as f:
+    pickle.dump(scaler, f)
 
+# Save test data for Streamlit app
+test_data = pd.concat([pd.DataFrame(X_test_scaled, columns=X.columns), 
+                       pd.DataFrame(y_test.values, columns=['target'])], axis=1)
+test_data.to_csv('model/test_data.csv', index=False)
 
 print("\n" + "="*80)
 print("Training Models and Calculating Metrics")
@@ -130,9 +136,10 @@ for model_name, model in models.items():
     print(f"  F1 Score: {f1:.4f}")
     print(f"  MCC: {mcc:.4f}")
     
-    # Save model using joblib (better than pickle for sklearn models)
+    # Save model
     model_filename = f"model/{model_name.replace(' ', '_').lower()}.pkl"
-    joblib.dump(model, model_filename)
+    with open(model_filename, 'wb') as f:
+        pickle.dump(model, f)
     print(f"  Model saved: {model_filename}")
 
 # Save all metrics to CSV for easy access
@@ -146,8 +153,3 @@ print(metrics_df.to_string())
 print("\n" + "="*80)
 print("All models trained and saved successfully!")
 print("="*80)
-
-# Save test data for Streamlit app
-test_data = pd.concat([pd.DataFrame(X_test_scaled, columns=X.columns), 
-                       pd.DataFrame(y_test.values, columns=['target'])], axis=1)
-test_data.to_csv('model/test_data.csv', index=False)
