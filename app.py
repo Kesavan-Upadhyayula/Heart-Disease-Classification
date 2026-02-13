@@ -46,6 +46,13 @@ selected_model_name = st.sidebar.selectbox(
 )
 
 
+# File upload section
+st.sidebar.header("Data Upload")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Test Data (CSV)",
+    type=['csv'],
+    help="Upload a CSV file with the same features as the training data"
+)   
 # Footer
 st.markdown("---")
 st.markdown("""
