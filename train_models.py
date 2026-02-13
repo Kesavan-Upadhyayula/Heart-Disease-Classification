@@ -45,8 +45,7 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # Save the scaler
-with open('model/scaler.pkl', 'wb') as f:
-    pickle.dump(scaler, f)
+joblib.dump(scaler, 'model/scaler.pkl')
 
 
 print("\n" + "="*80)
