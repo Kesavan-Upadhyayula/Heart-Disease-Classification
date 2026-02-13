@@ -51,8 +51,8 @@ def load_scaler():
     try:
         with open('model/scaler.pkl', 'rb') as f:
             return pickle.load(f)
-    except:
-        st.error("Scaler file not found. Please run train_models.py first.")
+    except Exception as e:
+        st.error(f"Scaler file not found. Please run train_models.py first. Error: {e}")
         return None
 
 # Load single model
@@ -61,8 +61,8 @@ def load_model(model_path):
     try:
         with open(model_path, 'rb') as f:
             return pickle.load(f)
-    except:
-        st.error(f"Model file not found: {model_path}")
+    except Exception as e:
+        st.error(f"Model file not found: {model_path}. Error: {e}")
         return None
 
 # Load all models for comparison
@@ -74,26 +74,30 @@ def load_all_models():
         try:
             with open(path, 'rb') as f:
                 models[name] = pickle.load(f)
-        except:
-            st.warning(f"Could not load {name}")
+        except Exception as e:
+            st.warning(f"Could not load {name}: {e}")
     return models
 
 # Calculate metrics for a single model
 def calculate_model_metrics(model, X_test_scaled, y_test):
     """Calculate all metrics for a given model"""
-    y_pred = model.predict(X_test_scaled)
-    y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
-    
-    metrics = {
-        'Accuracy': accuracy_score(y_test, y_pred),
-        'AUC': roc_auc_score(y_test, y_pred_proba),
-        'Precision': precision_score(y_test, y_pred),
-        'Recall': recall_score(y_test, y_pred),
-        'F1': f1_score(y_test, y_pred),
-        'MCC': matthews_corrcoef(y_test, y_pred)
-    }
-    
-    return metrics, y_pred, y_pred_proba
+    try:
+        y_pred = model.predict(X_test_scaled)
+        y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
+        
+        metrics = {
+            'Accuracy': accuracy_score(y_test, y_pred),
+            'AUC': roc_auc_score(y_test, y_pred_proba),
+            'Precision': precision_score(y_test, y_pred, zero_division=0),
+            'Recall': recall_score(y_test, y_pred, zero_division=0),
+            'F1': f1_score(y_test, y_pred, zero_division=0),
+            'MCC': matthews_corrcoef(y_test, y_pred)
+        }
+        
+        return metrics, y_pred, y_pred_proba
+    except Exception as e:
+        st.error(f"Error calculating metrics: {e}")
+        return None, None, None
 
 # Calculate metrics for all models
 def calculate_all_metrics(models, X_test_scaled, y_test):
@@ -101,9 +105,10 @@ def calculate_all_metrics(models, X_test_scaled, y_test):
     all_metrics = {}
     for model_name, model in models.items():
         metrics, _, _ = calculate_model_metrics(model, X_test_scaled, y_test)
-        all_metrics[model_name] = metrics
+        if metrics is not None:
+            all_metrics[model_name] = metrics
     
-    return pd.DataFrame(all_metrics).T
+    return pd.DataFrame(all_metrics).T if all_metrics else pd.DataFrame()
 
 scaler = load_scaler()
 model = load_model(model_options[selected_model_name])
@@ -145,94 +150,97 @@ if model is not None and scaler is not None and 'target' in test_data.columns:
     # Calculate metrics for selected model
     metrics, y_pred, y_pred_proba = calculate_model_metrics(model, X_test_scaled, y_test)
     
-    # Display model performance
-    st.header(f"{selected_model_name} Performance")
-    
-    # Display metrics in columns
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Accuracy", f"{metrics['Accuracy']:.4f}")
-        st.metric("Precision", f"{metrics['Precision']:.4f}")
-    with col2:
-        st.metric("AUC Score", f"{metrics['AUC']:.4f}")
-        st.metric("Recall", f"{metrics['Recall']:.4f}")
-    with col3:
-        st.metric("F1 Score", f"{metrics['F1']:.4f}")
-        st.metric("MCC Score", f"{metrics['MCC']:.4f}")
-    
-    # Confusion Matrix
-    st.subheader("Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    
-    fig = go.Figure(data=go.Heatmap(
-        z=cm,
-        x=['Predicted No Disease', 'Predicted Disease'],
-        y=['Actual No Disease', 'Actual Disease'],
-        colorscale='Blues',
-        text=cm,
-        texttemplate='%{text}',
-        textfont={"size": 20},
-    ))
-    
-    fig.update_layout(
-        title='Confusion Matrix',
-        xaxis_title='Predicted Label',
-        yaxis_title='True Label',
-        height=400
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Classification Report
-    st.subheader(" Classification Report")
-    report = classification_report(y_test, y_pred, output_dict=True)
-    report_df = pd.DataFrame(report).transpose()
-    st.dataframe(report_df.style.format("{:.4f}"))
-    
-    # Model comparison section - DYNAMICALLY CALCULATED
-    st.header(" All Models Comparison")
-    
-    # Calculate metrics for ALL models using current test data
-    metrics_df = calculate_all_metrics(all_models, X_test_scaled, y_test)
-    
-    # Display metrics table with highlighting
-    st.dataframe(
-        metrics_df.style.format("{:.4f}").background_gradient(cmap='Greens', axis=0),
-        use_container_width=True
-    )
-    
-    # Visualize comparison
-    st.subheader("Visual Comparison of Models")
-    
-    # Create bar chart for all metrics
-    fig = make_subplots(
-        rows=2, cols=3,
-        subplot_titles=list(metrics_df.columns)
-    )
-    
-    positions = [(1,1), (1,2), (1,3), (2,1), (2,2), (2,3)]
-    colors = ['#1f77b4', '#87ceeb', '#ff6b6b', '#90ee90', '#ffa07a', '#dda0dd']
-    
-    for idx, (col, pos) in enumerate(zip(metrics_df.columns, positions)):
-        fig.add_trace(
-            go.Bar(
-                x=metrics_df.index,
-                y=metrics_df[col],
-                name=col,
-                marker_color=colors[idx],
-                showlegend=False
-            ),
-            row=pos[0], col=pos[1]
+    if metrics is not None:
+        # Display model performance
+        st.header(f"{selected_model_name} Performance")
+        
+        # Display metrics in columns
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Accuracy", f"{metrics['Accuracy']:.4f}")
+            st.metric("Precision", f"{metrics['Precision']:.4f}")
+        with col2:
+            st.metric("AUC Score", f"{metrics['AUC']:.4f}")
+            st.metric("Recall", f"{metrics['Recall']:.4f}")
+        with col3:
+            st.metric("F1 Score", f"{metrics['F1']:.4f}")
+            st.metric("MCC Score", f"{metrics['MCC']:.4f}")
+        
+        # Confusion Matrix
+        st.subheader("Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        
+        fig = go.Figure(data=go.Heatmap(
+            z=cm,
+            x=['Predicted No Disease', 'Predicted Disease'],
+            y=['Actual No Disease', 'Actual Disease'],
+            colorscale='Blues',
+            text=cm,
+            texttemplate='%{text}',
+            textfont={"size": 20},
+        ))
+        
+        fig.update_layout(
+            title='Confusion Matrix',
+            xaxis_title='Predicted Label',
+            yaxis_title='True Label',
+            height=400
         )
-    
-    fig.update_layout(
-        height=600, 
-        title_text="Model Performance Metrics Comparison (Current Test Data)"
-    )
-    fig.update_xaxes(tickangle=45)
-    fig.update_yaxes(range=[0, 1.05])
-    st.plotly_chart(fig, use_container_width=True)
-    
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Classification Report
+        st.subheader("Classification Report")
+        report = classification_report(y_test, y_pred, output_dict=True)
+        report_df = pd.DataFrame(report).transpose()
+        st.dataframe(report_df.style.format("{:.4f}"))
+        
+        # Model comparison section - DYNAMICALLY CALCULATED
+        st.header("All Models Comparison")
+        
+        # Calculate metrics for ALL models using current test data
+        metrics_df = calculate_all_metrics(all_models, X_test_scaled, y_test)
+        
+        if not metrics_df.empty:
+            # Display metrics table with highlighting
+            st.dataframe(
+                metrics_df.style.format("{:.4f}").background_gradient(cmap='Greens', axis=0),
+                use_container_width=True
+            )
+            
+            # Visualize comparison
+            st.subheader("Visual Comparison of Models")
+            
+            # Create bar chart for all metrics
+            fig = make_subplots(
+                rows=2, cols=3,
+                subplot_titles=list(metrics_df.columns)
+            )
+            
+            positions = [(1,1), (1,2), (1,3), (2,1), (2,2), (2,3)]
+            colors = ['#1f77b4', '#87ceeb', '#ff6b6b', '#90ee90', '#ffa07a', '#dda0dd']
+            
+            for idx, (col, pos) in enumerate(zip(metrics_df.columns, positions)):
+                fig.add_trace(
+                    go.Bar(
+                        x=metrics_df.index,
+                        y=metrics_df[col],
+                        name=col,
+                        marker_color=colors[idx],
+                        showlegend=False
+                    ),
+                    row=pos[0], col=pos[1]
+                )
+            
+            fig.update_layout(
+                height=600, 
+                title_text="Model Performance Metrics Comparison (Current Test Data)"
+            )
+            fig.update_xaxes(tickangle=45)
+            fig.update_yaxes(range=[0, 1.05])
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Could not calculate metrics for model comparison")
 
 elif model is not None and scaler is not None and 'target' not in test_data.columns:
     st.warning("No 'target' column found in test data. Cannot calculate metrics.")
