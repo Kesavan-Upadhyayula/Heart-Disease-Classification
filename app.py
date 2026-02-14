@@ -40,11 +40,6 @@ model_options = {
     'Gradient Boosting': 'model/gradient_boosting.pkl'
 }
 
-selected_model_name = st.sidebar.selectbox(
-    "Select Classification Model",
-    list(model_options.keys())
-)
-
 # Load scaler data from the model directory
 @st.cache_resource
 def load_scaler():
@@ -55,34 +50,32 @@ def load_scaler():
         st.error(f"Scaler file not found. Please run train_models.py first. Error: {e}")
         return None
 
-# Load single model with error handling
+# Load single model with detailed error handling
 @st.cache_resource
-def load_model(model_path):
+def load_model(model_path, model_name):
     try:
         with open(model_path, 'rb') as f:
-            return pickle.load(f)
+            model = pickle.load(f)
+        return model, None
     except Exception as e:
-        st.error(f"Could not load model from {model_path}")
-        st.error(f"Error details: {str(e)}")
-        return None
+        error_msg = str(e)
+        return None, error_msg
 
 # Load all models for comparison
 @st.cache_resource
 def load_all_models():
     """Load all models at once for comparison"""
     models = {}
-    errors = []
+    failed_models = {}
+    
     for name, path in model_options.items():
-        try:
-            with open(path, 'rb') as f:
-                models[name] = pickle.load(f)
-        except Exception as e:
-            errors.append(f"{name}: {str(e)}")
+        model, error = load_model(path, name)
+        if model is not None:
+            models[name] = model
+        else:
+            failed_models[name] = error
     
-    if errors and len(errors) < len(model_options):
-        st.sidebar.warning(f"Some models failed to load: {len(errors)}/{len(model_options)}")
-    
-    return models
+    return models, failed_models
 
 # Calculate metrics for a single model
 def calculate_model_metrics(model, X_test_scaled, y_test):
@@ -130,9 +123,39 @@ def style_metrics_dataframe(df):
         
         return df.style.format("{:.4f}").apply(highlight_max, axis=0)
 
+# Load all models first to check availability
+all_models, failed_models = load_all_models()
 scaler = load_scaler()
-model = load_model(model_options[selected_model_name])
-all_models = load_all_models()  # Load all models for comparison
+
+# Display warning if some models failed
+if failed_models:
+    st.sidebar.warning(f"⚠️ Some models failed to load: {len(failed_models)}/{len(model_options)}")
+    with st.sidebar.expander("View failed models"):
+        for name, error in failed_models.items():
+            st.error(f"**{name}**: {error[:100]}...")
+
+# Filter model options to only show successfully loaded models
+available_models = {k: v for k, v in model_options.items() if k in all_models}
+
+if not available_models:
+    st.error("❌ No models could be loaded. Please check your model files.")
+    st.info("**Troubleshooting Steps:**")
+    st.markdown("""
+    1. Ensure model files exist in the `model/` directory
+    2. Retrain models using `python train_models.py`
+    3. Check scikit-learn version compatibility
+    4. See TROUBLESHOOTING.md for detailed help
+    """)
+    st.stop()
+
+# Model selection (only show available models)
+selected_model_name = st.sidebar.selectbox(
+    "Select Classification Model",
+    list(available_models.keys())
+)
+
+# Get the selected model
+model = all_models.get(selected_model_name)
 
 # File upload section
 st.sidebar.header("Data Upload")
@@ -218,8 +241,13 @@ if model is not None and scaler is not None and 'target' in test_data.columns:
         # Model comparison section - DYNAMICALLY CALCULATED
         st.header("All Models Comparison")
         
+        # Show info about available vs total models
+        if failed_models:
+            st.info(f"📊 Comparing {len(all_models)} available models (out of {len(model_options)} total)")
+            st.caption(f"Models excluded due to loading errors: {', '.join(failed_models.keys())}")
+        
         if len(all_models) > 0:
-            # Calculate metrics for ALL models using current test data
+            # Calculate metrics for ALL available models using current test data
             metrics_df = calculate_all_metrics(all_models, X_test_scaled, y_test)
             
             if not metrics_df.empty:
