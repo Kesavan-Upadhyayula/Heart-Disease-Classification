@@ -55,14 +55,15 @@ def load_scaler():
         st.error(f"Scaler file not found. Please run train_models.py first. Error: {e}")
         return None
 
-# Load single model
+# Load single model with error handling
 @st.cache_resource
 def load_model(model_path):
     try:
         with open(model_path, 'rb') as f:
             return pickle.load(f)
     except Exception as e:
-        st.error(f"Model file not found: {model_path}. Error: {e}")
+        st.error(f"Could not load model from {model_path}")
+        st.error(f"Error details: {str(e)}")
         return None
 
 # Load all models for comparison
@@ -70,12 +71,17 @@ def load_model(model_path):
 def load_all_models():
     """Load all models at once for comparison"""
     models = {}
+    errors = []
     for name, path in model_options.items():
         try:
             with open(path, 'rb') as f:
                 models[name] = pickle.load(f)
         except Exception as e:
-            st.warning(f"Could not load {name}: {e}")
+            errors.append(f"{name}: {str(e)}")
+    
+    if errors and len(errors) < len(model_options):
+        st.sidebar.warning(f"Some models failed to load: {len(errors)}/{len(model_options)}")
+    
     return models
 
 # Calculate metrics for a single model
@@ -109,6 +115,20 @@ def calculate_all_metrics(models, X_test_scaled, y_test):
             all_metrics[model_name] = metrics
     
     return pd.DataFrame(all_metrics).T if all_metrics else pd.DataFrame()
+
+# Helper function to style dataframe with color highlighting
+def style_metrics_dataframe(df):
+    """Apply color gradient styling to metrics dataframe"""
+    try:
+        # Try matplotlib-based gradient (requires matplotlib)
+        return df.style.format("{:.4f}").background_gradient(cmap='Greens', axis=0)
+    except:
+        # Fallback: use simple formatting without gradient
+        def highlight_max(s):
+            is_max = s == s.max()
+            return ['background-color: lightgreen' if v else '' for v in is_max]
+        
+        return df.style.format("{:.4f}").apply(highlight_max, axis=0)
 
 scaler = load_scaler()
 model = load_model(model_options[selected_model_name])
@@ -198,49 +218,52 @@ if model is not None and scaler is not None and 'target' in test_data.columns:
         # Model comparison section - DYNAMICALLY CALCULATED
         st.header("All Models Comparison")
         
-        # Calculate metrics for ALL models using current test data
-        metrics_df = calculate_all_metrics(all_models, X_test_scaled, y_test)
-        
-        if not metrics_df.empty:
-            # Display metrics table with highlighting
-            st.dataframe(
-                metrics_df.style.format("{:.4f}").background_gradient(cmap='Greens', axis=0),
-                use_container_width=True
-            )
+        if len(all_models) > 0:
+            # Calculate metrics for ALL models using current test data
+            metrics_df = calculate_all_metrics(all_models, X_test_scaled, y_test)
             
-            # Visualize comparison
-            st.subheader("Visual Comparison of Models")
-            
-            # Create bar chart for all metrics
-            fig = make_subplots(
-                rows=2, cols=3,
-                subplot_titles=list(metrics_df.columns)
-            )
-            
-            positions = [(1,1), (1,2), (1,3), (2,1), (2,2), (2,3)]
-            colors = ['#1f77b4', '#87ceeb', '#ff6b6b', '#90ee90', '#ffa07a', '#dda0dd']
-            
-            for idx, (col, pos) in enumerate(zip(metrics_df.columns, positions)):
-                fig.add_trace(
-                    go.Bar(
-                        x=metrics_df.index,
-                        y=metrics_df[col],
-                        name=col,
-                        marker_color=colors[idx],
-                        showlegend=False
-                    ),
-                    row=pos[0], col=pos[1]
+            if not metrics_df.empty:
+                # Display metrics table with highlighting
+                st.dataframe(
+                    style_metrics_dataframe(metrics_df),
+                    use_container_width=True
                 )
-            
-            fig.update_layout(
-                height=600, 
-                title_text="Model Performance Metrics Comparison (Current Test Data)"
-            )
-            fig.update_xaxes(tickangle=45)
-            fig.update_yaxes(range=[0, 1.05])
-            st.plotly_chart(fig, use_container_width=True)
+                
+                # Visualize comparison
+                st.subheader("Visual Comparison of Models")
+                
+                # Create bar chart for all metrics
+                fig = make_subplots(
+                    rows=2, cols=3,
+                    subplot_titles=list(metrics_df.columns)
+                )
+                
+                positions = [(1,1), (1,2), (1,3), (2,1), (2,2), (2,3)]
+                colors = ['#1f77b4', '#87ceeb', '#ff6b6b', '#90ee90', '#ffa07a', '#dda0dd']
+                
+                for idx, (col, pos) in enumerate(zip(metrics_df.columns, positions)):
+                    fig.add_trace(
+                        go.Bar(
+                            x=metrics_df.index,
+                            y=metrics_df[col],
+                            name=col,
+                            marker_color=colors[idx],
+                            showlegend=False
+                        ),
+                        row=pos[0], col=pos[1]
+                    )
+                
+                fig.update_layout(
+                    height=600, 
+                    title_text="Model Performance Metrics Comparison (Current Test Data)"
+                )
+                fig.update_xaxes(tickangle=45)
+                fig.update_yaxes(range=[0, 1.05])
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not calculate metrics for model comparison")
         else:
-            st.warning("Could not calculate metrics for model comparison")
+            st.warning("No models available for comparison. Please check model files.")
 
 elif model is not None and scaler is not None and 'target' not in test_data.columns:
     st.warning("⚠️ No 'target' column found in test data. Cannot calculate metrics.")

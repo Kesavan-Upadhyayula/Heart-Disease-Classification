@@ -45,9 +45,9 @@ scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Save the scaler
+# Save the scaler with protocol 4 for compatibility
 with open('model/scaler.pkl', 'wb') as f:
-    pickle.dump(scaler, f)
+    pickle.dump(scaler, f, protocol=4)
 
 # Save test data for Streamlit app
 test_data = pd.concat([pd.DataFrame(X_test_scaled, columns=X.columns), 
@@ -136,10 +136,10 @@ for model_name, model in models.items():
     print(f"  F1 Score: {f1:.4f}")
     print(f"  MCC: {mcc:.4f}")
     
-    # Save model
+    # Save model with protocol 4 for better compatibility
     model_filename = f"model/{model_name.replace(' ', '_').lower()}.pkl"
     with open(model_filename, 'wb') as f:
-        pickle.dump(model, f)
+        pickle.dump(model, f, protocol=4)
     print(f"  Model saved: {model_filename}")
 
 # Save all metrics to CSV for easy access
